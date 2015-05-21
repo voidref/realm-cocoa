@@ -364,12 +364,12 @@ void RLMInitializeSwiftListAccessor(RLMObjectBase *object) {
 } // extern "C" {
 
 template<typename F>
-static inline NSUInteger RLMCreateOrGetRowForObject(RLMObjectSchema *schema, F primaryValueGetter, RLMCreationOptions options, bool &created) {
+static inline NSUInteger RLMCreateOrGetRowForObject(RLMObjectSchema *schema, F primaryValueGetter, bool createOrUpdate, bool &created) {
     // try to get existing row if updating
     size_t rowIndex = realm::not_found;
     realm::Table &table = *schema.table;
     RLMProperty *primaryProperty = schema.primaryKeyProperty;
-    if ((options & RLMCreationOptionsUpdateOrCreate) && primaryProperty) {
+    if (createOrUpdate && primaryProperty) {
         // get primary value
         id primaryValue = primaryValueGetter(primaryProperty);
         
@@ -395,7 +395,7 @@ static inline NSUInteger RLMCreateOrGetRowForObject(RLMObjectSchema *schema, F p
 
 extern "C" {
 
-void RLMAddObjectToRealm(RLMObjectBase *object, RLMRealm *realm, RLMCreationOptions options) {
+void RLMAddObjectToRealm(RLMObjectBase *object, RLMRealm *realm, bool createOrUpdate) {
     RLMVerifyInWriteTransaction(realm);
 
     // verify that object is standalone
@@ -420,7 +420,7 @@ void RLMAddObjectToRealm(RLMObjectBase *object, RLMRealm *realm, RLMCreationOpti
     // get or create row
     bool created;
     auto primaryGetter = [=](RLMProperty *p) { return [object valueForKey:p.getterName]; };
-    object->_row = (*schema.table)[RLMCreateOrGetRowForObject(schema, primaryGetter, options, created)];
+    object->_row = (*schema.table)[RLMCreateOrGetRowForObject(schema, primaryGetter, createOrUpdate, created)];
 
     // populate all properties
     for (RLMProperty *prop in schema.properties) {
@@ -442,7 +442,7 @@ void RLMAddObjectToRealm(RLMObjectBase *object, RLMRealm *realm, RLMCreationOpti
         // set in table with out validation
         // skip primary key when updating since it doesn't change
         if (created || !prop.isPrimary) {
-            RLMDynamicSet(object, prop, value, options | (prop.isPrimary ? RLMCreationOptionsEnforceUnique : 0));
+            RLMDynamicSet(object, prop, value, createOrUpdate);
         }
 
         // set the ivars for object and array properties to nil as otherwise the
@@ -463,8 +463,8 @@ void RLMAddObjectToRealm(RLMObjectBase *object, RLMRealm *realm, RLMCreationOpti
     RLMInitializeSwiftListAccessor(object);
 }
 
-RLMObjectBase *RLMCreateObjectInRealmWithValue(RLMRealm *realm, NSString *className, id value, RLMCreationOptions options) {
-    if (options & RLMCreationOptionsUpdateOrCreate && RLMIsObjectSubclass([value class])) {
+RLMObjectBase *RLMCreateObjectInRealmWithValue(RLMRealm *realm, NSString *className, id value, bool createOrUpdate = false) {
+    if (createOrUpdate && RLMIsObjectSubclass([value class])) {
         RLMObjectBase *obj = value;
         if ([obj->_objectSchema.className isEqualToString:className] && obj->_realm == realm) {
             // This is a no-op if value is an RLMObject of the same type already backed by the target realm.
@@ -487,7 +487,7 @@ RLMObjectBase *RLMCreateObjectInRealmWithValue(RLMRealm *realm, NSString *classN
         // get or create our accessor
         bool created;
         auto primaryGetter = [=](RLMProperty *p) { return array[p.column]; };
-        object->_row = (*objectSchema.table)[RLMCreateOrGetRowForObject(objectSchema, primaryGetter, options, created)];
+        object->_row = (*objectSchema.table)[RLMCreateOrGetRowForObject(objectSchema, primaryGetter, createOrUpdate, created)];
 
         // populate
         NSArray *props = objectSchema.properties;
@@ -495,8 +495,7 @@ RLMObjectBase *RLMCreateObjectInRealmWithValue(RLMRealm *realm, NSString *classN
             RLMProperty *prop = props[i];
             // skip primary key when updating since it doesn't change
             if (created || !prop.isPrimary) {
-                RLMDynamicSet(object, prop, array[i],
-                              options | RLMCreationOptionsUpdateOrCreate | (prop.isPrimary ? RLMCreationOptionsEnforceUnique : 0));
+                RLMDynamicSet(object, prop, array[i], createOrUpdate);
             }
         }
     }
@@ -504,7 +503,7 @@ RLMObjectBase *RLMCreateObjectInRealmWithValue(RLMRealm *realm, NSString *classN
         // get or create our accessor
         bool created;
         auto primaryGetter = [=](RLMProperty *p) { return [value valueForKey:p.name]; };
-        object->_row = (*objectSchema.table)[RLMCreateOrGetRowForObject(objectSchema, primaryGetter, options, created)];
+        object->_row = (*objectSchema.table)[RLMCreateOrGetRowForObject(objectSchema, primaryGetter, createOrUpdate, created)];
 
         // assume dictionary or object with kvc properties
         NSDictionary *dict = RLMValidatedDictionaryForObjectSchema(value, objectSchema, schema, !created, realm);
@@ -514,8 +513,7 @@ RLMObjectBase *RLMCreateObjectInRealmWithValue(RLMRealm *realm, NSString *classN
             // skip missing properties and primary key when updating since it doesn't change
             id propValue = dict[prop.name];
             if (propValue && (created || !prop.isPrimary)) {
-                RLMDynamicSet(object, prop, propValue,
-                              options | RLMCreationOptionsUpdateOrCreate | (prop.isPrimary ? RLMCreationOptionsEnforceUnique : 0));
+                RLMDynamicSet(object, prop, propValue, createOrUpdate);
             }
         }
     }

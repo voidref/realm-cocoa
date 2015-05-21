@@ -168,7 +168,7 @@ BOOL RLMIsObjectValidForProperty(id obj, RLMProperty *property) {
 
 static inline id RLMValidatedRealmObject(id obj, RLMSchema *schema, RLMObjectSchema *objectSchema, RLMRealm *realm) {
     if (realm) {
-        return RLMCreateObjectInRealmWithValue(realm, objectSchema.className, obj, RLMCreationOptionsAllowCopy | RLMCreationOptionsUpdateOrCreate);
+        return RLMCreateObjectInRealmWithValue(realm, objectSchema.className, obj, true);
     }
     else {
         return [[objectSchema.objectClass alloc] initWithValue:obj schema:schema];
