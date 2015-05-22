@@ -468,20 +468,20 @@ void RLMAddObjectToRealm(RLMObjectBase *object, RLMRealm *realm, bool createOrUp
     RLMInitializeSwiftListAccessor(object);
 }
 
-static void RLMValidateObjectOrLiteral(id obj, NSString *className, RLMSchema *schema, bool allowMissing) {
+static void RLMValidateNestedObject(id obj, NSString *className, RLMSchema *schema, bool allowMissing) {
     if (obj != nil && obj != NSNull.null) {
         if (RLMObjectBase *objBase = RLMDynamicCast<RLMObjectBase>(obj)) {
             RLMObjectSchema *objectSchema = objBase->_objectSchema;
             if (![className isEqualToString:objectSchema.className]) {
                 // if not the right object class treat as literal
-                RLMValidateObjectLiteral(objBase, schema[className], schema, allowMissing);
+                RLMValidateValueForProperty(objBase, schema[className], schema, allowMissing);
             }
             if (objBase.isInvalidated) {
                 @throw RLMException(@"Adding a deleted or invalidated object to a Realm is not permitted");
             }
         }
         else {
-            RLMValidateObjectLiteral(obj, schema[className], schema, allowMissing);
+            RLMValidateValueForProperty(obj, schema[className], schema, allowMissing);
         }
     }
 }
@@ -504,7 +504,7 @@ static void RLMValidateObjectForProperty(id obj, RLMProperty *prop, RLMSchema *s
             break;
         case RLMPropertyTypeObject:
             if (recurse) {
-                RLMValidateObjectOrLiteral(obj, prop.objectClassName, schema, allowMissing);
+                RLMValidateNestedObject(obj, prop.objectClassName, schema, allowMissing);
             }
             break;
         case RLMPropertyTypeArray: {
@@ -512,7 +512,7 @@ static void RLMValidateObjectForProperty(id obj, RLMProperty *prop, RLMSchema *s
                 if (obj != nil && obj != NSNull.null) {
                     id<NSFastEnumeration> array = obj;
                     for (id el in array) {
-                        RLMValidateObjectOrLiteral(el, prop.objectClassName, schema, allowMissing);
+                        RLMValidateNestedObject(el, prop.objectClassName, schema, allowMissing);
                     }
                 }
             }
@@ -521,9 +521,9 @@ static void RLMValidateObjectForProperty(id obj, RLMProperty *prop, RLMSchema *s
     }
 }
 
-void RLMValidateObjectLiteral(id literal, RLMObjectSchema *objectSchema, RLMSchema *schema, bool allowMissing) {
+void RLMValidateValueForProperty(id value, RLMObjectSchema *objectSchema, RLMSchema *schema, bool allowMissing) {
     NSArray *props = objectSchema.properties;
-    if (NSArray *array = RLMDynamicCast<NSArray>(literal)) {
+    if (NSArray *array = RLMDynamicCast<NSArray>(value)) {
         if (array.count != props.count) {
             @throw RLMException(@"Invalid array input. Number of array elements does not match number of properties.");
         }
@@ -535,7 +535,7 @@ void RLMValidateObjectLiteral(id literal, RLMObjectSchema *objectSchema, RLMSche
     else {
         NSDictionary *defaults;
         for (RLMProperty *prop in props) {
-            id obj = [literal valueForKey:prop.name];
+            id obj = [value valueForKey:prop.name];
 
             // get default for nil object
             if (!obj) {
@@ -567,9 +567,6 @@ RLMObjectBase *RLMCreateObjectInRealmWithValue(RLMRealm *realm, NSString *classN
     RLMSchema *schema = realm.schema;
     RLMObjectSchema *objectSchema = schema[className];
     RLMObjectBase *object = [[objectSchema.accessorClass alloc] initWithRealm:realm schema:objectSchema];
-
-    // validate value
-    //RLMValidateObjectLiteral(value, objectSchema, schema, createOrUpdate);
 
     RLMCreationOptions creationOptions = createOrUpdate ? RLMCreationOptionsCreateOrUpdate : RLMCreationOptionsNone;
 
