@@ -37,4 +37,8 @@ class SortDescriptorTests: TestCase {
     func testDescription() {
         XCTAssertEqual(sortDescriptor.description, "SortDescriptor (property: property, direction: ascending)")
     }
+
+    func testStringLiteralConvertible() {
+        XCTAssertEqual(sortDescriptor, "property", "SortDescriptor should conform to StringLiteralConvertible")
+    }
 }

@@ -11,6 +11,8 @@ x.x.x Release notes (yyyy-MM-dd)
 * `RLMObject`, `RLMResults`, `Object` and `Results` can now be safely
   deallocated (but still not used) from any thread.
 * Improved performance of most simple queries.
+* Swift: Made `SortDescriptor` conform to the `Equatable` and
+  `StringLiteralConvertible` protocols.
 
 ### Bugfixes
 
